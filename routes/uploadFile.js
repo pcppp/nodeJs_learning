@@ -7,39 +7,6 @@ const fs = require('fs');
 const path = require('path');
 const uploadDir = path.join(process.cwd(), 'uploads');
 
-// router.use(formidableMiddleware());
-// const multer = require('multer');
-// 设置上传文件的存储引擎（可以选择存储到内存或硬盘）
-// const storage = multer.diskStorage({
-//   destination: (req, file, cb) => {
-//     console.log(req, file);
-//     // 设置文件上传的存储路径
-//     const renderTreeFile = (root) => {
-//       root.children.forEach((child) => {
-//         cb(null, process.cwd() + '/tempFile' + '/' + child.key);
-//         if (child.children.length > 0) {
-//           renderTreeFile(child);
-//         }
-//       });
-//     };
-//     renderTreeFile(JSON.parse(req));
-//   },
-//   filename: (req, file, cb) => {
-//     console.log(req, file);
-//     const renderTreeFile = (root) => {
-//       root.children.forEach((child) => {
-//         cb(null, child.data.name); // 使用时间戳 + 文件后缀
-//         console.log('======= child.data.name =======\n', child.data.name);
-//         if (child.children.length > 0) {
-//           renderTreeFile(child);
-//         }
-//       });
-//     };
-//     renderTreeFile(JSON.parse(req));
-//     // 设置文件名
-//   },
-// });
-// const upload = multer({});
 router.post('/upLoadFiles', (req, res, next) => {
   const form = new formidable.IncomingForm();
   // 配置 formidable（可选）
