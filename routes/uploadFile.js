@@ -17,43 +17,36 @@ const pipeStream = (path, writeStream) => {
   });
 };
 
-const mergeFileChunk = async (filePath, fileHash, chunkSize) => {
+const mergeFileChunk = async (filePath, fileHash, chunkSize, res) => {
   try {
     const chunkDir = path.resolve(uploadDir, `${fileHash}`);
     console.log(`Chunk directory: ${chunkDir}`);
-
-    const chunkPaths = await fs.readdir(chunkDir);
-    console.log(`Chunk paths: ${chunkPaths}`);
-
-    // 根据切片下标进行排序，然后进行合并
-    chunkPaths.sort((a, b) => a.split('-')[1] - b.split('-')[1]);
-    console.log(`Sorted chunk paths: ${chunkPaths}`);
-
-    // 并发合并写入文件
-    await Promise.all(
-      chunkPaths.map((chunkPath, index) =>
-        pipeStream(
-          path.resolve(chunkDir, chunkPath),
-          // 根据 chunkSize 在指定位置创建可写流
-          fs.createWriteStream(filePath, {
-            start: index * chunkSize,
-          })
-        )
-      )
-    );
-    console.log(`File merged successfully: ${filePath}`);
-
-    // 合并后删除保存切片的目录
-    fs.rmdirSync(chunkDir);
-    console.log(`Chunk directory removed: ${chunkDir}`);
+    await fs.readdir(chunkDir, async (error, files) => {
+      files.sort((a, b) => a.split('-')[1] - b.split('-')[1]);
+      // 并发合并写入文件
+      await Promise.all(
+        files.map((file, index) => {
+          return pipeStream(
+            path.resolve(chunkDir, file),
+            // 根据 chunkSize 在指定位置创建可写流
+            fs.createWriteStream(path.join(uploadDir, filePath), {
+              start: index * chunkSize,
+            })
+          );
+        })
+      );
+      console.log(`File merged successfully: ${path.join(uploadDir, filePath)}`);
+      await fs.rmdirSync(chunkDir);
+    });
+    res.status(200).json({ message: 'Folder uploaded successfully!' });
   } catch (error) {
+    res.status(500).json({ message: error });
     console.error(`Error in mergeFileChunk: ${error.message}`);
   }
 };
-
 router.post('/mergeChunks', (req, res, next) => {
   const requestBody = req.body;
-  mergeFileChunk(requestBody.fileName, requestBody.fileHash, requestBody.chunkSize);
+  mergeFileChunk(requestBody.fileName, requestBody.fileHash, requestBody.chunkSize, res);
 });
 router.post('/upLoadFiles', (req, res, next) => {
   const form = new formidable.IncomingForm();
@@ -95,23 +88,29 @@ router.post('/upLoadFiles', (req, res, next) => {
       fs.rm(file.path, { recursive: true, force: true }, (err) => {
         if (err) throw err;
       });
-      return res.status(200).json({ message: 'Folder uploaded successfully!' });
+      return res.status(200).json({ message: 'Folder uploaded successfully!', file });
     } else if (fields.type === 'fileSlice') {
       if (fs.existsSync(targetPath)) {
-        fs.rm(targetPath, { recursive: true, force: true }, (err) => {
-          if (err) throw err;
+        // fs.rm(targetPath, { recursive: true, force: true }, (err) => {
+        //   if (err) throw err;
+        // });
+        console.log('File - fast - upload');
+        res.json({
+          message: 'File-fast-upload successfully!',
+          file,
+        });
+      } else {
+        fs.rename(file.path, targetPath, (err) => {
+          if (err) {
+            console.error('Error moving the file:', err);
+            return res.status(500).json({ message: 'File upload failed' });
+          }
+          res.json({
+            message: 'File uploaded successfully!',
+            file,
+          });
         });
       }
-      fs.rename(file.path, targetPath, (err) => {
-        if (err) {
-          console.error('Error moving the file:', err);
-          return res.status(500).json({ message: 'File upload failed' });
-        }
-        res.json({
-          message: 'File uploaded successfully!',
-          filePath: `/uploads/${fields.hash}/${fields.hashIndex}`,
-        });
-      });
     } else {
       if (fs.existsSync(targetPath)) {
         fs.rm(targetPath, { recursive: true, force: true }, (err) => {
@@ -125,7 +124,7 @@ router.post('/upLoadFiles', (req, res, next) => {
         }
         res.json({
           message: 'File uploaded successfully!',
-          filePath: `/uploads/${path.basename(targetPath)}`,
+          file,
         });
       });
     }
